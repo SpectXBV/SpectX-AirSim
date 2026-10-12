@@ -1,0 +1,4 @@
+[submodule "AirSideUE_58"]
+	path = AirSideUE_58
+	url = git@github.com:SpectXBV/AirSideUE_58.git
+	branch = integration/working-airside-2026-10-12
