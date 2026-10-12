@@ -580,6 +580,11 @@ __pragma(warning(disable : 4239))
             pimpl_->client.call("simSetTimeOfDay", is_enabled, start_datetime, is_start_datetime_dst, celestial_clock_speed, update_interval_secs, move_sun);
         }
 
+        uint64_t RpcLibClientBase::simGetTimeOfDay() const
+        {
+            return pimpl_->client.call("simGetTimeOfDay").as<uint64_t>();
+        }
+
         vector<string> RpcLibClientBase::simListSceneObjects(const string& name_regex) const
         {
             return pimpl_->client.call("simListSceneObjects", name_regex).as<vector<string>>();

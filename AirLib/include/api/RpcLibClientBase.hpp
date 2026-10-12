@@ -55,6 +55,7 @@ namespace airlib
 
         void simSetTimeOfDay(bool is_enabled, const string& start_datetime = "", bool is_start_datetime_dst = false,
                              float celestial_clock_speed = 1, float update_interval_secs = 60, bool move_sun = true);
+        uint64_t simGetTimeOfDay() const;
 
         void simEnableWeather(bool enable);
         void simSetWeatherParameter(WorldSimApiBase::WeatherParameter param, float val);
