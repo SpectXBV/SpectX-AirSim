@@ -44,6 +44,7 @@ namespace airlib
 
         virtual void setTimeOfDay(bool is_enabled, const std::string& start_datetime, bool is_start_datetime_dst,
                                   float celestial_clock_speed, float update_interval_secs, bool move_sun) = 0;
+        virtual uint64_t getTimeOfDay() const = 0;
 
         virtual void enableWeather(bool enable) = 0;
         virtual void setWeatherParameter(WeatherParameter param, float val) = 0;
