@@ -5,6 +5,8 @@
 #include "Runtime/Launch/Resources/Version.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/DirectionalLight.h"
+#include "Components/DirectionalLightComponent.h"
 #include "Misc/OutputDeviceNull.h"
 #include "Engine/World.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
@@ -19,10 +21,31 @@
 #include "common/SteppableClock.hpp"
 #include "SimJoyStick/SimJoyStick.h"
 #include "common/EarthCelestial.hpp"
+#include "common/GeodeticConverter.hpp"
 #include "sensors/lidar/LidarSimple.hpp"
 #include "sensors/distance/DistanceSimple.hpp"
+#include <stdexcept>
 
 #include "Weather/WeatherLib.h"
+
+#include "api/RpcLibServerBase.hpp"
+
+// rpc/server.h include with UE macro workarounds
+STRICT_MODE_OFF
+#ifndef RPCLIB_MSGPACK
+#define RPCLIB_MSGPACK clmdep_msgpack
+#endif
+#include "common/common_utils/MinWinDefines.hpp"
+#undef NOUSER
+#include "common/common_utils/WindowsApisCommonPre.hpp"
+#undef FLOAT
+#undef check
+#include "rpc/server.h"
+#ifndef check
+#define check(expr) (static_cast<void>((expr)))
+#endif
+#include "common/common_utils/WindowsApisCommonPost.hpp"
+STRICT_MODE_ON
 
 #include "Beacons/TemplateBeacon.h"
 #include "Beacons/FiducialBeacon.h"
@@ -132,6 +155,7 @@ void ASimModeBase::BeginPlay()
     }
     global_ned_transform_.reset(new NedTransform(player_start_transform,
                                                  UAirBlueprintLib::GetWorldToMetersScale(this)));
+    initializeGeoReference();
 
     UAirBlueprintLib::GenerateAssetRegistryMap(this, asset_map);
 
@@ -176,9 +200,90 @@ void ASimModeBase::BeginPlay()
     InitializeAnnotation();
 }
 
-const NedTransform& ASimModeBase::getGlobalNedTransform()
+const NedTransform& ASimModeBase::getGlobalNedTransform() const
 {
     return *global_ned_transform_;
+}
+
+void ASimModeBase::initializeGeoReference()
+{
+    geo_reference_initialized_ = true;
+    geo_reference_has_anchor_ = false;
+    geo_reference_anchor_tag_.clear();
+    geo_reference_anchor_ue_ = FVector::ZeroVector;
+    geo_reference_anchor_global_ned_ = Vector3r::Zero();
+
+    const std::string& anchor_tag = getSettings().origin_geopoint_anchor_tag;
+    if (anchor_tag.empty()) {
+        return;
+    }
+
+    TArray<AActor*> anchor_actors;
+    const FString anchor_tag_fstring(UTF8_TO_TCHAR(anchor_tag.c_str()));
+    UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName(*anchor_tag_fstring), anchor_actors);
+    if (anchor_actors.Num() != 1) {
+        const std::string message = Utils::stringf(
+            "OriginGeopoint.AnchorActorTag '%s' matched %d actors; expected exactly one.",
+            anchor_tag.c_str(), anchor_actors.Num());
+        UAirBlueprintLib::LogMessageString("AirSim georeference anchor error: ", message, LogDebugLevel::Failure);
+        throw std::runtime_error(message);
+    }
+
+    geo_reference_has_anchor_ = true;
+    geo_reference_anchor_tag_ = anchor_tag;
+    geo_reference_anchor_ue_ = anchor_actors[0]->GetActorLocation();
+    geo_reference_anchor_global_ned_ = getGlobalNedTransform().toGlobalNed(geo_reference_anchor_ue_);
+
+    const std::string message = Utils::stringf(
+        "tag=%s, ue=(%.3f, %.3f, %.3f), global_ned=(%.3f, %.3f, %.3f)",
+        anchor_tag.c_str(),
+        geo_reference_anchor_ue_.X, geo_reference_anchor_ue_.Y, geo_reference_anchor_ue_.Z,
+        geo_reference_anchor_global_ned_.x(), geo_reference_anchor_global_ned_.y(), geo_reference_anchor_global_ned_.z());
+    UAirBlueprintLib::LogMessageString("AirSim georeference anchor: ", message, LogDebugLevel::Informational);
+}
+
+FVector ASimModeBase::geoToUnreal(const msr::airlib::GeoPoint& geo_point) const
+{
+    if (!geo_reference_initialized_) {
+        throw std::runtime_error("AirSim georeference has not been initialized.");
+    }
+
+    msr::airlib::GeodeticConverter converter(getSettings().origin_geopoint.home_geo_point);
+    double north = 0;
+    double east = 0;
+    double down = 0;
+    converter.geodetic2Ned(geo_point.latitude, geo_point.longitude, geo_point.altitude, &north, &east, &down);
+    const Vector3r anchor_relative_ned(north, east, down);
+
+    if (geo_reference_has_anchor_) {
+        return getGlobalNedTransform().fromGlobalNed(geo_reference_anchor_global_ned_ + anchor_relative_ned);
+    }
+
+    // Legacy AirSim behavior: OriginGeopoint labels UE world (0,0,0), not PlayerStart.
+    const NedTransform zero_based_ned_transform(FTransform::Identity, UAirBlueprintLib::GetWorldToMetersScale(this));
+    return zero_based_ned_transform.fromGlobalNed(anchor_relative_ned);
+}
+
+msr::airlib::GeoPoint ASimModeBase::unrealToGeo(const FVector& unreal_position) const
+{
+    if (!geo_reference_initialized_) {
+        throw std::runtime_error("AirSim georeference has not been initialized.");
+    }
+
+    Vector3r anchor_relative_ned;
+    if (geo_reference_has_anchor_) {
+        anchor_relative_ned = getGlobalNedTransform().toGlobalNed(unreal_position) - geo_reference_anchor_global_ned_;
+    }
+    else {
+        // Legacy AirSim behavior: OriginGeopoint labels UE world (0,0,0), not PlayerStart.
+        const NedTransform zero_based_ned_transform(FTransform::Identity, UAirBlueprintLib::GetWorldToMetersScale(this));
+        anchor_relative_ned = zero_based_ned_transform.toGlobalNed(unreal_position);
+    }
+
+    msr::airlib::GeoPoint geo_point;
+    msr::airlib::GeodeticConverter converter(getSettings().origin_geopoint.home_geo_point);
+    converter.ned2Geodetic(anchor_relative_ned, geo_point);
+    return geo_point;
 }
 
 void ASimModeBase::checkVehicleReady()
@@ -1247,7 +1352,6 @@ void ASimModeBase::ForceUpdateAnnotation(FString annotation_name) {
 }
 
 void ASimModeBase::updateInstanceSegmentationAnnotation() {
-	instance_segmentation_annotator_.UpdateAnnotationComponents(this->GetWorld());
     TArray<TWeakObjectPtr<UPrimitiveComponent>> current_segmentation_components = instance_segmentation_annotator_.GetAnnotationComponents();
 
     TArray<AActor*> cameras_found;
@@ -1288,7 +1392,6 @@ void ASimModeBase::updateAnnotation(FString annotation_name) {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
     }
     else {
-		annotators_[annotation_name].UpdateAnnotationComponents(this->GetWorld());
         TArray<TWeakObjectPtr<UPrimitiveComponent>> current_annotation_components = annotators_[annotation_name].GetAnnotationComponents();
         TArray<AActor*> cameras_found;
         UAirBlueprintLib::RunCommandOnGameThread([this, &cameras_found]() {
@@ -1315,13 +1418,13 @@ void ASimModeBase::updateAnnotation(FString annotation_name) {
         }
         if (CameraDirector != nullptr) {
             if (CameraDirector->getFpvCamera() != nullptr)
-        CameraDirector->getFpvCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
+                CameraDirector->getFpvCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
             if (CameraDirector->getExternalCamera() != nullptr)
-        CameraDirector->getExternalCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
+                CameraDirector->getExternalCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
             if (CameraDirector->getBackupCamera() != nullptr)
-        CameraDirector->getBackupCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
+                CameraDirector->getBackupCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
             if (CameraDirector->getFrontCamera() != nullptr)
-        CameraDirector->getFrontCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
+                CameraDirector->getFrontCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
         }
     }
 }
@@ -1366,12 +1469,14 @@ bool ASimModeBase::SetWorldLightIntensity(const std::string& light_name, float i
 
 void ASimModeBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    // Stop and join RPC workers before vehicle APIs and their raw camera pointers are dismantled.
+    stopApiServer();
     FRecordingThread::stopRecording();
     FRecordingThread::killRecording();
     world_sim_api_.reset();
     api_provider_.reset();
-    api_server_.reset();
     global_ned_transform_.reset();
+    camera_target_vehicle_name_.Reset();
 
     CameraDirector = nullptr;
     sky_sphere_ = nullptr;
@@ -1394,29 +1499,98 @@ void ASimModeBase::initializeTimeOfDay()
     sky_sphere_ = nullptr;
     sun_ = nullptr;
 
-    TArray<AActor*> sky_spheres;
-    UGameplayStatics::GetAllActorsOfClass(this->GetWorld(), sky_sphere_class_, sky_spheres);
+    UE_LOG(LogTemp, Warning, TEXT("AIRSIDE_TIMEOFDAY_PATCH: initializeTimeOfDay called"));
 
-    if (sky_spheres.Num() > 1)
-        UAirBlueprintLib::LogMessage(TEXT("More than BP_Sky_Sphere were found. "),
-                                     TEXT("TimeOfDay settings would be applied to first one."),
-                                     LogDebugLevel::Failure);
+    // ---------------------------------------------------------------------
+    // Legacy BP_Sky_Sphere support.
+    // ---------------------------------------------------------------------
+    if (sky_sphere_class_ != nullptr) {
+        TArray<AActor*> sky_spheres;
+        UGameplayStatics::GetAllActorsOfClass(this->GetWorld(), sky_sphere_class_, sky_spheres);
 
-    if (sky_spheres.Num() >= 1) {
-        sky_sphere_ = sky_spheres[0];
-        static const FName sun_prop_name(TEXT("Directional light actor"));
-        auto* p = sky_sphere_class_->FindPropertyByName(sun_prop_name);
+        if (sky_spheres.Num() > 1) {
+            UAirBlueprintLib::LogMessage(TEXT("More than BP_Sky_Sphere were found. "),
+                                         TEXT("TimeOfDay settings would be applied to first one."),
+                                         LogDebugLevel::Failure);
+        }
 
+        if (sky_spheres.Num() >= 1) {
+            sky_sphere_ = sky_spheres[0];
+            static const FName sun_prop_name(TEXT("Directional light actor"));
+            FProperty* p = sky_sphere_class_->FindPropertyByName(sun_prop_name);
+
+            if (p != nullptr) {
 #if ((ENGINE_MAJOR_VERSION > 4) || (ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION >= 27))
-        FObjectProperty* sun_prop = CastFieldChecked<FObjectProperty>(p);
+                FObjectProperty* sun_prop = CastField<FObjectProperty>(p);
 #else
-        FObjectProperty* sun_prop = Cast<FObjectProperty>(p);
+                FObjectProperty* sun_prop = Cast<FObjectProperty>(p);
 #endif
+                if (sun_prop != nullptr) {
+                    UObject* sun_obj = sun_prop->GetObjectPropertyValue_InContainer(sky_sphere_);
+                    ADirectionalLight* sun_actor = Cast<ADirectionalLight>(sun_obj);
+                    if (sun_actor != nullptr) {
+                        sun_ = sun_actor->GetComponentByClass<UDirectionalLightComponent>();
+                    }
+                }
+            }
+        }
+    }
 
-        UObject* sun_obj = sun_prop->GetObjectPropertyValue_InContainer(sky_sphere_);
-        sun_ = Cast<ADirectionalLight>(sun_obj);
-        if (sun_)
-            default_sun_rotation_ = sun_->GetActorRotation();
+    // ---------------------------------------------------------------------
+    // UE5 fallback: support SunSky / SkyAtmosphere setups where the sun is a
+    // UDirectionalLightComponent owned by another actor instead of a
+    // standalone ADirectionalLight actor.
+    //
+    // Preferred selection: owner actor tagged "AirSimSun".
+    // Automatic fallback: use the only DirectionalLight component in level.
+    // ---------------------------------------------------------------------
+    if (sun_ == nullptr) {
+        TArray<AActor*> actors;
+        UGameplayStatics::GetAllActorsOfClass(this->GetWorld(), AActor::StaticClass(), actors);
+
+        TArray<UDirectionalLightComponent*> candidates;
+
+        for (AActor* actor : actors) {
+            if (actor == nullptr)
+                continue;
+
+            TArray<UDirectionalLightComponent*> components;
+            actor->GetComponents<UDirectionalLightComponent>(components);
+
+            for (UDirectionalLightComponent* component : components) {
+                if (component == nullptr)
+                    continue;
+
+                candidates.Add(component);
+
+                if (actor->ActorHasTag(FName(TEXT("AirSimSun")))) {
+                    sun_ = component;
+                    break;
+                }
+            }
+
+            if (sun_ != nullptr)
+                break;
+        }
+
+        if (sun_ == nullptr && candidates.Num() == 1) {
+            sun_ = candidates[0];
+        }
+    }
+
+    if (sun_ != nullptr) {
+        default_sun_rotation_ = sun_->GetComponentRotation();
+
+        UE_LOG(LogTemp,
+               Warning,
+               TEXT("AIRSIDE_TIMEOFDAY_PATCH: using sun component %s, owner %s"),
+               *sun_->GetName(),
+               sun_->GetOwner() != nullptr ? *sun_->GetOwner()->GetName() : TEXT("NONE"));
+    }
+    else {
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("AIRSIDE_TIMEOFDAY_PATCH: no DirectionalLight component found"));
     }
 }
 
@@ -1428,12 +1602,12 @@ void ASimModeBase::setTimeOfDay(bool is_enabled, const std::string& start_dateti
     if (is_enabled) {
 
         if (!sun_) {
-            UAirBlueprintLib::LogMessage(TEXT("BP_Sky_Sphere was not found. "),
+            UAirBlueprintLib::LogMessage(TEXT("DirectionalLight was not found. "),
                                          TEXT("TimeOfDay settings would be ignored."),
                                          LogDebugLevel::Failure);
         }
         else {
-            sun_->GetRootComponent()->Mobility = EComponentMobility::Movable;
+            sun_->SetMobility(EComponentMobility::Movable);
 
             // this is a bit odd but given how advanceTimeOfDay() works currently,
             // tod_sim_clock_start_ needs to be reset here.
@@ -1460,6 +1634,19 @@ void ASimModeBase::setTimeOfDay(bool is_enabled, const std::string& start_dateti
     tod_celestial_clock_speed_ = celestial_clock_speed;
     tod_update_interval_secs_ = update_interval_secs;
     tod_move_sun_ = move_sun;
+}
+
+uint64_t ASimModeBase::getTimeOfDay() const
+{
+    // Return the same simulated celestial time that drives the SunSky sun.
+    // A value of 0 means TimeOfDay is currently disabled / unavailable.
+    if (!tod_enabled_ || tod_start_time_ == 0)
+        return 0;
+
+    const auto interval =
+        ClockFactory::get()->elapsedSince(tod_sim_clock_start_) * tod_celestial_clock_speed_;
+
+    return ClockFactory::get()->addTo(tod_start_time_, interval) / 1000000000ULL;
 }
 
 bool ASimModeBase::isPaused() const
@@ -1561,7 +1748,7 @@ void ASimModeBase::advanceTimeOfDay()
 {
     const auto& settings = getSettings();
 
-    if (tod_enabled_ && sky_sphere_ && sun_ && tod_move_sun_) {
+    if (tod_enabled_ && sun_ && tod_move_sun_) {
         auto secs = ClockFactory::get()->elapsedSince(tod_last_update_);
         if (secs > tod_update_interval_secs_) {
             tod_last_update_ = ClockFactory::get()->nowNanos();
@@ -1580,12 +1767,20 @@ void ASimModeBase::advanceTimeOfDay()
 
 void ASimModeBase::setSunRotation(FRotator rotation)
 {
-    if (sun_ && sky_sphere_) {
+    if (sun_ != nullptr) {
         UAirBlueprintLib::RunCommandOnGameThread([this, rotation]() {
-            sun_->SetActorRotation(rotation);
+            if (sun_ != nullptr) {
+                sun_->SetWorldRotation(rotation);
+            }
 
-            FOutputDeviceNull ar;
-            sky_sphere_->CallFunctionByNameWithArguments(TEXT("UpdateSunDirection"), ar, NULL, true);
+            // Legacy BP_Sky_Sphere needs an explicit refresh. Modern UE5
+            // SunSky/SkyAtmosphere setups react directly to the component
+            // rotation, so no sky-sphere callback is required there.
+            if (sky_sphere_ != nullptr) {
+                FOutputDeviceNull ar;
+                sky_sphere_->CallFunctionByNameWithArguments(
+                    TEXT("UpdateSunDirection"), ar, nullptr, true);
+            }
         },
                                                  true /*wait*/);
     }
@@ -1606,6 +1801,39 @@ void ASimModeBase::reset()
 std::string ASimModeBase::getDebugReport()
 {
     return debug_reporter_.getOutput();
+}
+
+bool ASimModeBase::focusCameraOnVehicle(const FString& vehicle_name)
+{
+    if (!api_provider_ || !IsValid(CameraDirector)) {
+        UAirBlueprintLib::LogMessageString("Camera target is not available: ", TCHAR_TO_UTF8(*vehicle_name), LogDebugLevel::Failure);
+        return false;
+    }
+
+    const std::string vehicle_name_utf8 = TCHAR_TO_UTF8(*vehicle_name);
+    PawnSimApi* vehicle_sim_api = getVehicleSimApi(vehicle_name_utf8);
+    if (vehicle_sim_api == nullptr || !IsValid(vehicle_sim_api->getPawn()) ||
+        !IsValid(vehicle_sim_api->getPawn()->GetRootComponent())) {
+        UAirBlueprintLib::LogMessageString("Camera target is not available: ", vehicle_name_utf8, LogDebugLevel::Failure);
+        return false;
+    }
+
+    if (!CameraDirector->focusOnVehicle(vehicle_sim_api->getPawn(),
+                                        vehicle_sim_api->getCamera("fpv"),
+                                        vehicle_sim_api->getCamera("front_center"),
+                                        vehicle_sim_api->getCamera("back_center"))) {
+        UAirBlueprintLib::LogMessageString("Camera target could not be focused: ", vehicle_name_utf8, LogDebugLevel::Failure);
+        return false;
+    }
+
+    camera_target_vehicle_name_ = vehicle_name;
+    UAirBlueprintLib::LogMessageString("Camera target: ", vehicle_name_utf8, LogDebugLevel::Informational);
+    return true;
+}
+
+FString ASimModeBase::getCameraTargetVehicleName() const
+{
+    return camera_target_vehicle_name_;
 }
 
 void ASimModeBase::setupInputBindings()
@@ -1685,12 +1913,18 @@ void ASimModeBase::toggleTraceAll()
 
 const APIPCamera* ASimModeBase::getCamera(const msr::airlib::CameraDetails& camera_details) const
 {
-    return getVehicleSimApi(camera_details.vehicle_name)->getCamera(camera_details.camera_name);
+    if (!api_provider_) return nullptr;
+    auto* sim_api = getVehicleSimApi(camera_details.vehicle_name);
+    if (!sim_api) return nullptr;
+    return sim_api->getCamera(camera_details.camera_name);
 }
 
 const UnrealImageCapture* ASimModeBase::getImageCapture(const std::string& vehicle_name) const
 {
-    return getVehicleSimApi(vehicle_name)->getImageCapture();
+    if (!api_provider_) return nullptr;
+    auto* sim_api = getVehicleSimApi(vehicle_name);
+    if (!sim_api) return nullptr;
+    return sim_api->getImageCapture();
 }
 
 //API server start/stop
@@ -1705,11 +1939,12 @@ void ASimModeBase::startApiServer()
 #endif
 
         try {
-            api_server_->start(false, spawned_actors_.Num() + 4);
+            api_server_->start(false, spawned_actors_.Num() + 12);
         }
         catch (std::exception& ex) {
             UAirBlueprintLib::LogMessageString("Cannot start RpcLib Server", ex.what(), LogDebugLevel::Failure);
         }
+
     }
     else
         UAirBlueprintLib::LogMessageString("API server is disabled in settings", "", LogDebugLevel::Informational);
@@ -1767,7 +2002,9 @@ APawn* ASimModeBase::createVehiclePawn(const AirSimSettings::VehicleSetting& veh
     // compute initial pose
     FVector spawn_position = uu_origin.GetLocation();
     Vector3r settings_position = vehicle_setting.position;
-    if (!VectorMath::hasNan(settings_position))
+    if (vehicle_setting.has_geo_position)
+        spawn_position = geoToUnreal(vehicle_setting.geo_position);
+    else if (!VectorMath::hasNan(settings_position))
         spawn_position = getGlobalNedTransform().fromGlobalNed(settings_position);
 
     FRotator spawn_rotation = toFRotator(vehicle_setting.rotation, uu_origin.Rotator());
@@ -1795,12 +2032,13 @@ std::unique_ptr<PawnSimApi> ASimModeBase::createVehicleApi(APawn* vehicle_pawn)
     initializeVehiclePawn(vehicle_pawn);
 
     //create vehicle sim api
-    const auto& ned_transform = getGlobalNedTransform();
-    const auto& pawn_ned_pos = ned_transform.toLocalNed(vehicle_pawn->GetActorLocation());
-    const auto& home_geopoint = msr::airlib::EarthUtils::nedToGeodetic(pawn_ned_pos, getSettings().origin_geopoint);
+    const auto home_geopoint = unrealToGeo(vehicle_pawn->GetActorLocation());
     const std::string vehicle_name(TCHAR_TO_UTF8(*(vehicle_pawn->GetName())));
 
-    PawnSimApi::Params pawn_sim_api_params(vehicle_pawn, &getGlobalNedTransform(), getVehiclePawnEvents(vehicle_pawn), getVehiclePawnCameras(vehicle_pawn), pip_camera_class, getVehiclePawnLights(vehicle_pawn), collision_display_template, home_geopoint, vehicle_name);
+    PawnSimApi::Params pawn_sim_api_params(vehicle_pawn, &getGlobalNedTransform(), getVehiclePawnEvents(vehicle_pawn), getVehiclePawnCameras(vehicle_pawn), pip_camera_class, getVehiclePawnLights(vehicle_pawn), collision_display_template, home_geopoint, vehicle_name,
+                                           [this](const msr::airlib::GeoPoint& geo_point) {
+                                               return geoToUnreal(geo_point);
+                                           });
 
     std::unique_ptr<PawnSimApi> vehicle_sim_api = createVehicleSimApi(pawn_sim_api_params);
     auto vehicle_sim_api_p = vehicle_sim_api.get();
@@ -2116,11 +2354,19 @@ void ASimModeBase::setupVehiclesAndCamera()
 
     if (getApiProvider()->hasDefaultVehicle()) {
         //TODO: better handle no FPV vehicles scenario
-        getVehicleSimApi()->possess();
-        CameraDirector->initializeForBeginPlay(getInitialViewMode(), getVehicleSimApi()->getPawn(), getVehicleSimApi()->getCamera("fpv"), getVehicleSimApi()->getCamera("back_center"), nullptr);
+        PawnSimApi* default_vehicle_sim_api = getVehicleSimApi();
+        default_vehicle_sim_api->possess();
+        CameraDirector->initializeForBeginPlay(getInitialViewMode(),
+                                               default_vehicle_sim_api->getPawn(),
+                                               default_vehicle_sim_api->getCamera("fpv"),
+                                               default_vehicle_sim_api->getCamera("front_center"),
+                                               default_vehicle_sim_api->getCamera("back_center"));
+        camera_target_vehicle_name_ = UTF8_TO_TCHAR(default_vehicle_sim_api->getVehicleName().c_str());
     }
-    else
+    else {
         CameraDirector->initializeForBeginPlay(getInitialViewMode(), nullptr, nullptr, nullptr, nullptr);
+        camera_target_vehicle_name_.Reset();
+    }
 
     checkVehicleReady();
 }
@@ -2236,7 +2482,7 @@ void ASimModeBase::drawDistanceSensorDebugPoints()
                         10, // size
                         FColor::Green,
                         false, // persistent (never goes away)
-                        0.03 // LifeTime: point leaves a trail on moving object
+                        0.03f // LifeTime: point leaves a trail on moving object
                     );
                 }
             }

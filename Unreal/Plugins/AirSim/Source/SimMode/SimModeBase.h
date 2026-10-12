@@ -3,11 +3,13 @@
 #include "CoreMinimal.h"
 #include "Components/SkyLightComponent.h"
 #include "Engine/DirectionalLight.h"
+#include "Components/DirectionalLightComponent.h"
 #include "GameFramework/Actor.h"
 #include "Components/MeshComponent.h"
 #include "ParticleDefinitions.h"
 #include "Annotation/ObjectAnnotator.h"
 #include <string>
+#include <cstdint>
 #include "AirSimCameraDirector.h"
 #include "common/AirSimSettings.hpp"
 #include "AssetRegistry/AssetData.h"
@@ -48,6 +50,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "airsim | Utils")
     bool toggleRecording();
+
+    UFUNCTION(BlueprintCallable, Category = "airsim | Camera")
+    bool focusCameraOnVehicle(const FString& vehicle_name);
+
+    UFUNCTION(BlueprintPure, Category = "airsim | Camera")
+    FString getCameraTargetVehicleName() const;
 
 	UFUNCTION(BlueprintCallable, Category = "airsim | Instance Segmentation")
 	bool AddNewActorToInstanceSegmentation(AActor* Actor, bool update_annotation = true);
@@ -169,6 +177,7 @@ public:
 
     virtual void setTimeOfDay(bool is_enabled, const std::string& start_datetime, bool is_start_datetime_dst,
                               float celestial_clock_speed, float update_interval_secs, bool move_sun);
+    virtual uint64_t getTimeOfDay() const;
 
     virtual void startRecording();
     virtual void stopRecording();
@@ -183,7 +192,9 @@ public:
     bool createVehicleAtRuntime(const std::string& vehicle_name, const std::string& vehicle_type,
                                 const msr::airlib::Pose& pose, const std::string& pawn_path = "");
 
-    const NedTransform& getGlobalNedTransform();
+    const NedTransform& getGlobalNedTransform() const;
+    FVector geoToUnreal(const msr::airlib::GeoPoint& geo_point) const;
+    msr::airlib::GeoPoint unrealToGeo(const FVector& unreal_position) const;
 
     msr::airlib::ApiProvider* getApiProvider() const
     {
@@ -305,7 +316,7 @@ private:
     UPROPERTY()
     AActor* sky_sphere_;
     UPROPERTY()
-    ADirectionalLight* sun_;
+    UDirectionalLightComponent* sun_;
     FRotator default_sun_rotation_;
     TTimePoint tod_sim_clock_start_; // sim start in local time
     TTimePoint tod_last_update_;
@@ -316,10 +327,16 @@ private:
     bool tod_move_sun_;
 
     std::unique_ptr<NedTransform> global_ned_transform_;
+    bool geo_reference_initialized_ = false;
+    bool geo_reference_has_anchor_ = false;
+    std::string geo_reference_anchor_tag_;
+    FVector geo_reference_anchor_ue_ = FVector::ZeroVector;
+    Vector3r geo_reference_anchor_global_ned_ = Vector3r::Zero();
     std::unique_ptr<msr::airlib::WorldSimApiBase> world_sim_api_;
     std::unique_ptr<msr::airlib::ApiProvider> api_provider_;
     std::unique_ptr<msr::airlib::ApiServerBase> api_server_;
     msr::airlib::StateReporterWrapper debug_reporter_;
+    FString camera_target_vehicle_name_;
 
     std::vector<std::unique_ptr<msr::airlib::VehicleSimApiBase>> vehicle_sim_apis_;
 
@@ -339,6 +356,7 @@ private:
     void AddAnnotatorCamera(FString name, FObjectAnnotator::AnnotatorType type, float max_view_distance = -1.0f);
 	void InitializeMaterialStencils();
     void initializeTimeOfDay();
+    void initializeGeoReference();
     void advanceTimeOfDay();
     void setSunRotation(FRotator rotation);
     void setupPhysicsLoopPeriod();

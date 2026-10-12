@@ -120,6 +120,10 @@ namespace airlib
             getWorldSimApi()->setTimeOfDay(is_enabled, start_datetime, is_start_datetime_dst, celestial_clock_speed, update_interval_secs, move_sun);
         });
 
+        pimpl_->server.bind("simGetTimeOfDay", [&]() -> uint64_t {
+            return getWorldSimApi()->getTimeOfDay();
+        });
+
         pimpl_->server.bind("simEnableWeather", [&](bool enable) -> void {
             getWorldSimApi()->enableWeather(enable);
         });        

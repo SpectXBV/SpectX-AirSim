@@ -1,11 +1,11 @@
 #include "WorldSimApi.h"
+#include "common/ClockFactory.hpp"
 #include "common/common_utils/Utils.hpp"
 #include "AirBlueprintLib.h"
 #include "TextureShuffleActor.h"
 #include "common/common_utils/Utils.hpp"
 #include "Weather/WeatherLib.h"
 #include "DrawDebugHelpers.h"
-#include "Runtime/Engine/Classes/Components/LineBatchComponent.h"
 #include "Runtime/Engine/Classes/Engine/Engine.h"
 #include "Misc/OutputDeviceNull.h"
 #include "ImageUtils.h"
@@ -275,6 +275,11 @@ void WorldSimApi::setTimeOfDay(bool is_enabled, const std::string& start_datetim
     simmode_->setTimeOfDay(is_enabled, start_datetime, is_start_datetime_dst, celestial_clock_speed, update_interval_secs, move_sun);
 }
 
+uint64_t WorldSimApi::getTimeOfDay() const
+{
+    return simmode_->getTimeOfDay();
+}
+
 bool WorldSimApi::addVehicle(const std::string& vehicle_name, const std::string& vehicle_type, const Pose& pose, const std::string& pawn_path)
 {
     bool result;
@@ -353,12 +358,26 @@ bool WorldSimApi::setWorldLightIntensity(const std::string& light_name, float in
 
 bool WorldSimApi::setVehicleLightVisibility(const std::string& vehicle_name, const std::string& light_name, bool is_visible)
 {
-    return simmode_->getVehicleSimApi(vehicle_name)->setLightVisibility(light_name, is_visible);
+    PawnSimApi* vehicle_sim_api = simmode_->getVehicleSimApi(vehicle_name);
+    if (vehicle_sim_api == nullptr) {
+        UE_LOG(LogTemp, Warning, TEXT("WorldSimApi::setVehicleLightVisibility: vehicle '%s' was not found"),
+            UTF8_TO_TCHAR(vehicle_name.c_str()));
+        return false;
+    }
+
+    return vehicle_sim_api->setLightVisibility(light_name, is_visible);
 }
 
 bool WorldSimApi::setVehicleLightIntensity(const std::string& vehicle_name, const std::string& light_name, float intensity)
 {
-    return simmode_->getVehicleSimApi(vehicle_name)->setLightIntensity(light_name, intensity);
+    PawnSimApi* vehicle_sim_api = simmode_->getVehicleSimApi(vehicle_name);
+    if (vehicle_sim_api == nullptr) {
+        UE_LOG(LogTemp, Warning, TEXT("WorldSimApi::setVehicleLightIntensity: vehicle '%s' was not found"),
+            UTF8_TO_TCHAR(vehicle_name.c_str()));
+        return false;
+    }
+
+    return vehicle_sim_api->setLightIntensity(light_name, intensity);
 }
 
 void WorldSimApi::printLogMessage(const std::string& message,
@@ -828,35 +847,26 @@ bool WorldSimApi::testLineOfSightBetweenPoints(const msr::airlib::GeoPoint& lla1
 
     // We need to run this code on the main game thread, since it iterates over actors
     UAirBlueprintLib::RunCommandOnGameThread([this, &lla1, &lla2, &hit]() {
-        // This default NedTransform is part of how we anchor the AirSim primary LLA origin at 0, 0, 0 in Unreal
-        NedTransform zero_based_ned_transform(FTransform::Identity, UAirBlueprintLib::GetWorldToMetersScale(simmode_));
         FCollisionQueryParams collision_params(SCENE_QUERY_STAT(LineOfSight), true);
 
         const auto& settings = msr::airlib::AirSimSettings::singleton();
-        msr::airlib::GeodeticConverter converter(settings.origin_geopoint.home_geo_point.latitude,
-                                                 settings.origin_geopoint.home_geo_point.longitude,
-                                                 settings.origin_geopoint.home_geo_point.altitude);
-        double north, east, down;
-        converter.geodetic2Ned(lla1.latitude, lla1.longitude, lla1.altitude, &north, &east, &down);
-        msr::airlib::Vector3r ned(north, east, down);
-        FVector point1 = zero_based_ned_transform.fromGlobalNed(ned);
-        converter.geodetic2Ned(lla2.latitude, lla2.longitude, lla2.altitude, &north, &east, &down);
-        ned = msr::airlib::Vector3r(north, east, down);
-        FVector point2 = zero_based_ned_transform.fromGlobalNed(ned);
+        FVector point1 = simmode_->geoToUnreal(lla1);
+        FVector point2 = simmode_->geoToUnreal(lla2);
 
         hit = simmode_->GetWorld()->LineTraceTestByChannel(point1, point2, ECC_Visibility, collision_params);
 
         if (settings.show_los_debug_lines_) {
-            FLinearColor color;
+            FColor color;
             if (hit) {
                 // No LOS, so draw red line
-                color = FLinearColor{ 1.0f, 0, 0, 0.4f };
+                color = FColor(255, 0, 0, 102);
             }
             else {
                 // Yes LOS, so draw green line
-                color = FLinearColor{ 0, 1.0f, 0, 0.4f };
+                color = FColor(0, 255, 0, 102);
             }
-            UAirBlueprintLib::DrawLine(simmode_->GetWorld(), point1, point2, color.ToFColor(false), SDPG_World, 10, -1);
+
+            DrawDebugLine(simmode_->GetWorld(), point1, point2, color, true, 999999.0f, SDPG_World, 4.0f);
         }
     },
                                              true);
@@ -870,9 +880,6 @@ std::vector<msr::airlib::GeoPoint> WorldSimApi::getWorldExtents() const
     msr::airlib::GeoPoint lla_max_out;
     // We need to run this code on the main game thread, since it iterates over actors
     UAirBlueprintLib::RunCommandOnGameThread([this, &lla_min_out, &lla_max_out]() {
-        // This default NedTransform is part of how we anchor the AirSim primary LLA origin at 0, 0, 0 in Unreal
-        NedTransform zero_based_ned_transform(FTransform::Identity, UAirBlueprintLib::GetWorldToMetersScale(simmode_));
-
         // Testing actor enum for world bounds...
         FVector world_min{ FLT_MAX, FLT_MAX, FLT_MAX };
         FVector world_max{ FLT_MIN, FLT_MIN, FLT_MIN };
@@ -899,12 +906,8 @@ std::vector<msr::airlib::GeoPoint> WorldSimApi::getWorldExtents() const
         // TODO think more about how best to determine/indicate ground level, if anyone cares
 
         // Convert Uvectors to LLAs
-        const auto& settings = msr::airlib::AirSimSettings::singleton();
-        msr::airlib::Vector3r ned = zero_based_ned_transform.toGlobalNed(world_min);
-        lla_min_out = msr::airlib::EarthUtils::nedToGeodetic(ned, settings.origin_geopoint);
-
-        ned = zero_based_ned_transform.toGlobalNed(world_max);
-        lla_max_out = msr::airlib::EarthUtils::nedToGeodetic(ned, settings.origin_geopoint);
+        lla_min_out = simmode_->unrealToGeo(world_min);
+        lla_max_out = simmode_->unrealToGeo(world_max);
     },
                                              true);
 
@@ -972,8 +975,17 @@ std::vector<WorldSimApi::ImageCaptureBase::ImageResponse> WorldSimApi::getImages
 {
     std::vector<ImageCaptureBase::ImageResponse> responses;
 
-    const UnrealImageCapture* camera = simmode_->getImageCapture(vehicle_name);
-    camera->getImages(requests, responses);
+    const UnrealImageCapture* image_capture = simmode_->getImageCapture(vehicle_name);
+
+    if (image_capture)
+    {
+        image_capture->getImages(requests, responses);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("WorldSimApi::getImages: getImageCapture returned null for vehicle '%s'"),
+            UTF8_TO_TCHAR(vehicle_name.c_str()));
+    }
 
     return responses;
 }
@@ -994,82 +1006,107 @@ std::vector<uint8_t> WorldSimApi::getImage(ImageCaptureBase::ImageType image_typ
 //CinemAirSim
 std::vector<std::string> WorldSimApi::getPresetLensSettings(const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->getPresetLensSettings();
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return {};
+    return camera->getPresetLensSettings();
 }
 
 std::string WorldSimApi::getLensSettings(const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->getLensSettings();
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return "";
+    return camera->getLensSettings();
 }
 
 void WorldSimApi::setPresetLensSettings(std::string preset, const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->setPresetLensSettings(preset);
+    auto* camera = simmode_->getCamera(camera_details);
+    if (camera) camera->setPresetLensSettings(preset);
 }
 
 std::vector<std::string> WorldSimApi::getPresetFilmbackSettings(const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->getPresetFilmbackSettings();
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return {};
+    return camera->getPresetFilmbackSettings();
 }
 
 void WorldSimApi::setPresetFilmbackSettings(std::string preset, const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->setPresetFilmbackSettings(preset);
+    auto* camera = simmode_->getCamera(camera_details);
+    if (camera) camera->setPresetFilmbackSettings(preset);
 }
 
 std::string WorldSimApi::getFilmbackSettings(const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->getFilmbackSettings();
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return "";
+    return camera->getFilmbackSettings();
 }
 
 float WorldSimApi::setFilmbackSettings(float width, float height, const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->setFilmbackSettings(width, height);
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return 0.0f;
+    return camera->setFilmbackSettings(width, height);
 }
 
 float WorldSimApi::getFocalLength(const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->getFocalLength();
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return 0.0f;
+    return camera->getFocalLength();
 }
 
 void WorldSimApi::setFocalLength(float focal_length, const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->setFocalLength(focal_length);
+    auto* camera = simmode_->getCamera(camera_details);
+    if (camera) camera->setFocalLength(focal_length);
 }
 
 void WorldSimApi::enableManualFocus(bool enable, const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->enableManualFocus(enable);
+    auto* camera = simmode_->getCamera(camera_details);
+    if (camera) camera->enableManualFocus(enable);
 }
 
 float WorldSimApi::getFocusDistance(const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->getFocusDistance();
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return 0.0f;
+    return camera->getFocusDistance();
 }
 
 void WorldSimApi::setFocusDistance(float focus_distance, const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->setFocusDistance(focus_distance);
+    auto* camera = simmode_->getCamera(camera_details);
+    if (camera) camera->setFocusDistance(focus_distance);
 }
 
 float WorldSimApi::getFocusAperture(const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->getFocusAperture();
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return 0.0f;
+    return camera->getFocusAperture();
 }
 
 void WorldSimApi::setFocusAperture(float focus_aperture, const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->setFocusAperture(focus_aperture);
+    auto* camera = simmode_->getCamera(camera_details);
+    if (camera) camera->setFocusAperture(focus_aperture);
 }
 
 void WorldSimApi::enableFocusPlane(bool enable, const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->enableFocusPlane(enable);
+    auto* camera = simmode_->getCamera(camera_details);
+    if (camera) camera->enableFocusPlane(enable);
 }
 
 std::string WorldSimApi::getCurrentFieldOfView(const CameraDetails& camera_details)
 {
-    return simmode_->getCamera(camera_details)->getCurrentFieldOfView();
+    auto* camera = simmode_->getCamera(camera_details);
+    if (!camera) return "";
+    return camera->getCurrentFieldOfView();
 }
 //End CinemAirSim
 
@@ -1110,23 +1147,22 @@ std::vector<msr::airlib::DetectionInfo> WorldSimApi::getDetections(ImageCaptureB
     const APIPCamera* camera = simmode_->getCamera(camera_details);
     const NedTransform& ned_transform = simmode_->getVehicleSimApi(camera_details.vehicle_name)->getNedTransform();
     TMap<UMeshComponent*, FString> component_to_name_map = simmode_->GetInstanceSegmentationComponentToNameMap();
-    UAirBlueprintLib::RunCommandOnGameThread([camera, image_type, component_to_name_map , &result, &ned_transform, annotation_name]() {
+    UAirBlueprintLib::RunCommandOnGameThread([this, camera, image_type, component_to_name_map , &result, &ned_transform, annotation_name]() {
         const TArray<FDetectionInfo>& detections = camera->getDetectionComponent(image_type, false, annotation_name)->getDetections(component_to_name_map);
         result.resize(detections.Num());
 
         for (int i = 0; i < detections.Num(); i++) {
             result[i].name = std::string(TCHAR_TO_UTF8(*(detections[i].DetectionName)));
-            Vector3r nedWrtOrigin;
+            FVector detection_location;
             if(detections[i].Component != nullptr)
 			{
-                nedWrtOrigin = ned_transform.toGlobalNed(detections[i].Component->GetComponentLocation());
+                detection_location = detections[i].Component->GetComponentLocation();
 			}
 			else
 			{
-                nedWrtOrigin = ned_transform.toGlobalNed(detections[i].Actor->GetActorLocation());
+                detection_location = detections[i].Actor->GetActorLocation();
 			}
-            result[i].geo_point = msr::airlib::EarthUtils::nedToGeodetic(nedWrtOrigin,
-                                                                         AirSimSettings::singleton().origin_geopoint);
+            result[i].geo_point = simmode_->unrealToGeo(detection_location);
 
             result[i].box2D.min = Vector2r(detections[i].Box2D.Min.X, detections[i].Box2D.Min.Y);
             result[i].box2D.max = Vector2r(detections[i].Box2D.Max.X, detections[i].Box2D.Max.Y);
@@ -1144,3 +1180,5 @@ std::vector<msr::airlib::DetectionInfo> WorldSimApi::getDetections(ImageCaptureB
 
     return result;
 }
+
+

@@ -270,6 +270,22 @@ class VehicleClient:
                          celestial_clock_speed,
                          update_interval_secs, move_sun)
 
+    def simGetTimeOfDay(self):
+        """
+        Get the current simulated celestial date/time used by TimeOfDay.
+
+        Returns:
+            int: Unix epoch time in seconds. Returns 0 when TimeOfDay is disabled
+                 or has not been initialized.
+
+        Example::
+
+            epoch = client.simGetTimeOfDay()
+            from datetime import datetime
+            print(datetime.fromtimestamp(epoch) if epoch else "TimeOfDay disabled")
+        """
+        return self.client.call('simGetTimeOfDay')
+
     def simEnableWeather(self, enable):
         """
         Enable Weather effects. Needs to be called before using `simSetWeatherParameter` API
