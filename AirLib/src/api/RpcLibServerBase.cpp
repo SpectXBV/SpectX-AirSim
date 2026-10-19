@@ -116,22 +116,41 @@ namespace airlib
             getWorldSimApi()->continueForFrames(frames);
         });
 
-        pimpl_->server.bind("simSetTimeOfDay", [&](bool is_enabled, const string& start_datetime, bool is_start_datetime_dst, float celestial_clock_speed, float update_interval_secs, bool move_sun) -> void {
-            getWorldSimApi()->setTimeOfDay(is_enabled, start_datetime, is_start_datetime_dst, celestial_clock_speed, update_interval_secs, move_sun);
+        pimpl_->server.bind("simSetTimeOfDay", [&](bool is_enabled, uint64_t start_time_100ns, float celestial_clock_speed, float update_interval_secs, bool move_sun) -> void {
+            getWorldSimApi()->setTimeOfDay(is_enabled, start_time_100ns, celestial_clock_speed, update_interval_secs, move_sun);
         });
 
         pimpl_->server.bind("simGetTimeOfDay", [&]() -> uint64_t {
             return getWorldSimApi()->getTimeOfDay();
         });
 
-        pimpl_->server.bind("simEnableWeather", [&](bool enable) -> void {
+
+        pimpl_->server.bind(
+            "simSetTurbineDowntime",
+            [&](const std::string& turbine_name,
+                const std::string& start_datetime,
+                const std::string& end_datetime) -> bool {
+                return getWorldSimApi()->setTurbineDowntime(
+                    turbine_name,
+                    start_datetime,
+                    end_datetime);
+            });
+
+        pimpl_->server.bind(
+            "simGetTurbineOrientations",
+            [&](const std::string& turbine_name)
+                -> std::map<std::string, std::vector<float>> {
+                return getWorldSimApi()->getTurbineOrientations(
+                    turbine_name);
+            });
+pimpl_->server.bind("simEnableWeather", [&](bool enable) -> void {
             getWorldSimApi()->enableWeather(enable);
-        });        
+        });
 
         pimpl_->server.bind("simSetWeatherParameter", [&](WorldSimApiBase::WeatherParameter param, float val) -> void {
             getWorldSimApi()->setWeatherParameter(param, val);
         });
-        
+
         pimpl_->server.bind("simSetWorldLightVisibility", [&](const string& light_name, bool is_visible) -> bool {
             return getWorldSimApi()->setWorldLightVisibility(light_name, is_visible);
         });
@@ -569,7 +588,7 @@ namespace airlib
         pimpl_->server.bind("simCreateVoxelGrid", [&](const RpcLibAdaptorsBase::Vector3r& position, const int& x, const int& y, const int& z, const float& res, const std::string& output_file) -> bool {
             return getWorldSimApi()->createVoxelGrid(position.to(), x, y, z, res, output_file);
         });
-        
+
         pimpl_->server.bind("getUWBData", [&](const std::string& sensor_name, const std::string& vehicle_name) -> RpcLibAdaptorsBase::MarLocUwbReturnMessage {
             const auto& marLocUwbReturnMessage = getVehicleApi(vehicle_name)->getUWBData(sensor_name);
             return RpcLibAdaptorsBase::MarLocUwbReturnMessage(marLocUwbReturnMessage);

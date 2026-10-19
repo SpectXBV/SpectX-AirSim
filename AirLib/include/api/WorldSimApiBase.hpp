@@ -6,6 +6,8 @@
 
 #include "common/CommonStructs.hpp"
 #include "common/ImageCaptureBase.hpp"
+#include <map>
+#include <vector>
 
 namespace msr
 {
@@ -42,9 +44,19 @@ namespace airlib
         virtual void continueForTime(double seconds) = 0;
         virtual void continueForFrames(uint32_t frames) = 0;
 
-        virtual void setTimeOfDay(bool is_enabled, const std::string& start_datetime, bool is_start_datetime_dst,
+        virtual void setTimeOfDay(bool is_enabled, uint64_t start_time_100ns,
                                   float celestial_clock_speed, float update_interval_secs, bool move_sun) = 0;
+        virtual uint64_t getTimeOfDay() const = 0;
 
+
+        virtual bool setTurbineDowntime(
+            const std::string& turbine_name,
+            const std::string& start_datetime,
+            const std::string& end_datetime) = 0;
+
+        virtual std::map<std::string, std::vector<float>>
+        getTurbineOrientations(
+            const std::string& turbine_name) = 0;
         virtual void enableWeather(bool enable) = 0;
         virtual void setWeatherParameter(WeatherParameter param, float val) = 0;
 

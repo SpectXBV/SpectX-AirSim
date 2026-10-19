@@ -246,45 +246,92 @@ class VehicleClient:
         return self.client.call("simSetObjectMaterialFromTexture", object_name, texture_path,
                                 component_id)
 
-    def simSetTimeOfDay(self, is_enabled, start_datetime="", is_start_datetime_dst=False, celestial_clock_speed=1,
-                        update_interval_secs=60, move_sun=True):
+    def simSetTimeOfDay(self, is_enabled, start_time_100ns=0,
+                        celestial_clock_speed=1,
+                        update_interval_secs=60,
+                        move_sun=True):
         """
-        Control the position of Sun in the environment
-
-        Sun's position is computed using the coordinates specified in `OriginGeopoint` in settings for the date-time
-        specified in the argument,
-        else if the string is empty, current date & time is used
+        Control simulator TimeOfDay.
 
         Args:
-            is_enabled (bool): True to enable time-of-day effect, False to reset the position to original
-            start_datetime (str, optional): Date & Time in %Y-%m-%d %H:%M:%S format, e.g. `2018-02-12 15:20:00`
-            is_start_datetime_dst (bool, optional): True to adjust for Daylight Savings Time
-            celestial_clock_speed (float, optional): Run celestial clock faster or slower than simulation clock
-                                                     E.g. Value 100 means for every 1 second of simulation clock, Sun's
-                                                     position is advanced by 100 seconds
-                                                     so Sun will move in sky much faster
-            update_interval_secs (float, optional): Interval to update the Sun's position
-            move_sun (bool, optional): To move the Sun or not
+            is_enabled (bool): Enable or disable TimeOfDay.
+            start_time_100ns (int): Unix epoch timestamp in
+                100-nanosecond ticks.
+                10,000,000 ticks = 1 second.
+            celestial_clock_speed (float): Simulation clock multiplier.
+            update_interval_secs (float): Sun update interval.
+            move_sun (bool): Whether the visual sun should move.
         """
-        self.client.call('simSetTimeOfDay', is_enabled, start_datetime, is_start_datetime_dst,
-                         celestial_clock_speed,
-                         update_interval_secs, move_sun)
+        return self.client.call(
+            'simSetTimeOfDay',
+            is_enabled,
+            int(start_time_100ns),
+            celestial_clock_speed,
+            update_interval_secs,
+            move_sun
+        )
 
     def simGetTimeOfDay(self):
         """
-        Get the current simulated celestial date/time used by TimeOfDay.
+        Get the current simulator TimeOfDay.
 
         Returns:
-            int: Unix epoch time in seconds. Returns 0 when TimeOfDay is disabled
-                 or has not been initialized.
+            int: Unix epoch timestamp in 100-nanosecond ticks.
+                 Returns 0 when TimeOfDay is disabled or uninitialized.
 
         Example::
 
-            epoch = client.simGetTimeOfDay()
-            from datetime import datetime
-            print(datetime.fromtimestamp(epoch) if epoch else "TimeOfDay disabled")
+            ticks = client.simGetTimeOfDay()
+            seconds = ticks / 10_000_000
         """
         return self.client.call('simGetTimeOfDay')
+
+    def simSetTurbineDowntime(self, turbine_name,
+                              start_datetime,
+                              end_datetime):
+        """
+        Schedule downtime for one wind turbine.
+
+        The downtime is evaluated against simulator TimeOfDay,
+        not the host computer clock.
+
+        Args:
+            turbine_name (str): Turbine ID, e.g. ``WTG_03``.
+            start_datetime (str): Start as ``YYYY-MM-DD HH:MM``.
+            end_datetime (str): End as ``YYYY-MM-DD HH:MM``.
+
+        The interval is start-inclusive and end-exclusive:
+            current >= start and current < end
+
+        Returns:
+            bool: True when the schedule was accepted.
+        """
+        return self.client.call(
+            'simSetTurbineDowntime',
+            turbine_name,
+            start_datetime,
+            end_datetime
+        )
+
+    def simGetTurbineOrientations(self, turbine_name):
+        """
+        Get orientations for one wind turbine.
+
+        Args:
+            turbine_name (str): Turbine ID, e.g. ``WTG_03``.
+
+        Returns:
+            dict: Orientation entries. Each value is
+                  ``[roll, pitch, yaw]`` in Unreal degrees.
+
+                  Available entries include actor_world plus
+                  local/world rotations for tower, nacelle,
+                  rotor, hub, ring and blades.
+        """
+        return self.client.call(
+            'simGetTurbineOrientations',
+            turbine_name
+        )
 
     def simEnableWeather(self, enable):
         """
