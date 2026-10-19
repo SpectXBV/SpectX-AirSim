@@ -109,3 +109,146 @@ More technical details are available in [AirSim paper (FSR 2017 Conference)](htt
 ## License
 
 This project is released under the MIT License. Please review the [License file](https://github.com/Cosys-Lab/Cosys-AirSim/blob/main/LICENSE) for more details.
+
+<!-- AIRSIDE_WTG_API_START -->
+
+## AirSide runtime APIs
+
+AirSide extends the Python client with simulator TimeOfDay control and
+wind-turbine runtime APIs.
+
+### Connect
+
+```python
+import cosysairsim
+
+client = cosysairsim.MultirotorClient()
+client.confirmConnection()
+```
+
+### Simulator TimeOfDay
+
+TimeOfDay uses Unix epoch time in 100-nanosecond ticks.
+
+There are `10,000,000` ticks per second.
+
+Set the simulator time:
+
+```python
+from datetime import datetime, timezone
+
+dt = datetime(2026, 10, 19, 13, 30, tzinfo=timezone.utc)
+ticks = int(dt.timestamp() * 10_000_000)
+
+client.simSetTimeOfDay(
+    True,
+    ticks,
+    celestial_clock_speed=1,
+    update_interval_secs=60,
+    move_sun=True
+)
+```
+
+Read the current simulator time:
+
+```python
+ticks = client.simGetTimeOfDay()
+
+if ticks:
+    dt = datetime.fromtimestamp(
+        ticks / 10_000_000,
+        tz=timezone.utc
+    )
+    print(dt)
+```
+
+Disable TimeOfDay:
+
+```python
+client.simSetTimeOfDay(False)
+```
+
+`simGetTimeOfDay()` returns `0` when TimeOfDay is disabled.
+
+> Note: simulator API timestamps are Unix/UTC based. Unreal's on-screen
+> clock may display local time depending on the host configuration.
+
+### Wind turbine IDs
+
+The Offshore Wind Farm map exposes 35 turbines:
+
+```text
+WTG_01 ... WTG_35
+```
+
+### Schedule turbine downtime
+
+```python
+ok = client.simSetTurbineDowntime(
+    "WTG_04",
+    "2026-10-20 13:30",
+    "2026-10-23 09:00"
+)
+
+print(ok)
+```
+
+Datetime format:
+
+```text
+YYYY-MM-DD HH:MM
+```
+
+Downtime semantics are:
+
+```text
+start <= simulator_time < end
+```
+
+The turbine stops at the start time and resumes exactly at the end time.
+
+Same-day, overnight, and multi-day downtime intervals are supported.
+
+Downtime scheduling uses the simulator TimeOfDay clock. In the current
+implementation, the supplied calendar values correspond to UTC/Unix
+simulator time; Unreal's displayed clock may appear in local time.
+
+### Read turbine orientations
+
+```python
+orientations = client.simGetTurbineOrientations("WTG_04")
+
+for name, value in orientations.items():
+    print(name, value)
+```
+
+The returned dictionary includes orientation values for turbine
+components such as:
+
+```text
+actor
+tower
+nacelle
+rotor
+hub
+ring
+blade_1
+blade_2
+blade_3
+```
+
+Both local and world orientations are available.
+
+Orientation vectors use:
+
+```text
+[roll, pitch, yaw]
+```
+
+with values expressed in degrees.
+
+Euler-angle representations can wrap or flip while describing the same
+physical orientation, so component-wise Euler differences should not be
+used as the only test for physical rotation.
+
+<!-- AIRSIDE_WTG_API_END -->
