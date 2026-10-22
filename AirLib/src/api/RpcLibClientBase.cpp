@@ -14,6 +14,7 @@
 #include <functional>
 #include <vector>
 #include <thread>
+
 STRICT_MODE_OFF
 
 #ifndef RPCLIB_MSGPACK
@@ -761,6 +762,17 @@ __pragma(warning(disable : 4239))
             RpcLibAdaptorsBase::Vector3r conv_ext_force(ext_force);
             pimpl_->client.call("simSetExtForce", conv_ext_force);
         }
+
+        bool RpcLibClientBase::simSetTurbineDowntime(const std::string& turbine_name, const std::string& start_datetime, const std::string& end_datetime)
+        {
+            return pimpl_->client.call("simSetTurbineDowntime", turbine_name, start_datetime, end_datetime).as<bool>();
+        }
+
+        std::map<std::string, std::vector<float>> RpcLibClientBase::simGetTurbineOrientations(const std::string& turbine_name) const
+        {
+            return pimpl_->client.call("simGetTurbineOrientations", turbine_name).as<std::map<std::string, std::vector<float>>>();
+        }
+
         vector<string> RpcLibClientBase::listVehicles()
         {
             return pimpl_->client.call("listVehicles").as<vector<string>>();

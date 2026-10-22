@@ -15,6 +15,9 @@
 #include "physics/Kinematics.hpp"
 #include "physics/Environment.hpp"
 #include "api/WorldSimApiBase.hpp"
+#include <map>
+#include <string>
+#include <vector>
 
 namespace msr
 {
@@ -192,6 +195,10 @@ namespace airlib
 
         void simSetWind(const Vector3r& wind) const;
         void simSetExtForce(const Vector3r& ext_force) const;
+
+
+        bool simSetTurbineDowntime(const std::string& turbine_name, const std::string& start_datetime, const std::string& end_datetime);
+        std::map<std::string, std::vector<float>> simGetTurbineOrientations(const std::string& turbine_name) const;
 
         vector<string> listVehicles();
 
