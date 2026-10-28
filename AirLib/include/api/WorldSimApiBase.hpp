@@ -57,6 +57,14 @@ namespace airlib
         virtual std::map<std::string, std::vector<float>>
         getTurbineOrientations(
             const std::string& turbine_name) = 0;
+        virtual bool setVesselTarget(
+            double latitude,
+            double longitude,
+            float speed_mps) = 0;
+
+        virtual std::map<std::string, double>
+        getVesselState() = 0;
+
         virtual void enableWeather(bool enable) = 0;
         virtual void setWeatherParameter(WeatherParameter param, float val) = 0;
 

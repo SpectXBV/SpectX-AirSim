@@ -333,6 +333,35 @@ class VehicleClient:
             turbine_name
         )
 
+    def simSetVesselTarget(self, latitude, longitude, speed_mps):
+        """
+        Command the offshore vessel to move its helipad center to a GNSS target.
+
+        Args:
+            latitude (float): Target WGS84 latitude in degrees.
+            longitude (float): Target WGS84 longitude in degrees.
+            speed_mps (float): Requested vessel speed in m/s.
+
+        Returns:
+            bool: True if the target was accepted.
+        """
+        return self.client.call(
+            'simSetVesselTarget',
+            float(latitude),
+            float(longitude),
+            float(speed_mps)
+        )
+
+    def simGetVesselState(self):
+        """
+        Get current vessel state using the helipad center as the GNSS point.
+
+        Returns:
+            dict: Latitude, longitude, altitude, velocity, speed,
+                  heading, target information and route status.
+        """
+        return self.client.call('simGetVesselState')
+
     def simEnableWeather(self, enable):
         """
         Enable Weather effects. Needs to be called before using `simSetWeatherParameter` API

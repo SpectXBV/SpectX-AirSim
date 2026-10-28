@@ -143,6 +143,23 @@ namespace airlib
                 return getWorldSimApi()->getTurbineOrientations(
                     turbine_name);
             });
+        pimpl_->server.bind(
+            "simSetVesselTarget",
+            [&](double latitude,
+                double longitude,
+                float speed_mps) -> bool {
+                return getWorldSimApi()->setVesselTarget(
+                    latitude,
+                    longitude,
+                    speed_mps);
+            });
+
+        pimpl_->server.bind(
+            "simGetVesselState",
+            [&]() -> std::map<std::string, double> {
+                return getWorldSimApi()->getVesselState();
+            });
+
 pimpl_->server.bind("simEnableWeather", [&](bool enable) -> void {
             getWorldSimApi()->enableWeather(enable);
         });

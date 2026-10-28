@@ -252,3 +252,59 @@ physical orientation, so component-wise Euler differences should not be
 used as the only test for physical rotation.
 
 <!-- AIRSIDE_WTG_API_END -->
+
+## Vessel motion API
+
+AirSide exposes runtime vessel control through the Python RPC client. Vessel latitude, longitude, altitude, and velocity are reported from the center of the vessel charging pad / helideck.
+
+`simSetVesselTarget(latitude, longitude, speed_mps)` commands a geographic target and desired horizontal speed. It returns `True` when the target and route are accepted.
+
+`simGetVesselState()` returns the current vessel position, velocity, speed, heading, target, distance to target, route state, and arrival state.
+
+Example: move the vessel 100 m north at 3 m/s:
+
+```python
+import math
+import time
+import cosysairsim
+
+client = cosysairsim.MultirotorClient()
+client.confirmConnection()
+
+state = client.simGetVesselState()
+
+if state.get("valid") != 1.0:
+    raise RuntimeError("Vessel is not available")
+
+target_latitude = state["latitude"] + math.degrees(
+    100.0 / 6378137.0
+)
+target_longitude = state["longitude"]
+
+accepted = client.simSetVesselTarget(
+    target_latitude,
+    target_longitude,
+    3.0
+)
+
+if not accepted:
+    raise RuntimeError("Vessel target was rejected")
+
+while True:
+    state = client.simGetVesselState()
+
+    print(
+        f"speed={state['speed_mps']:.2f} m/s "
+        f"north={state['velocity_north_mps']:.2f} m/s "
+        f"east={state['velocity_east_mps']:.2f} m/s "
+        f"remaining={state['distance_to_target_m']:.1f} m "
+        f"arrived={state['arrived']:.0f}"
+    )
+
+    if state["arrived"] == 1.0:
+        break
+
+    time.sleep(1.0)
+```
+
+The vessel charging pad is the authoritative GNSS reference point. The physical ship, charging pad, and collision plane move together.
