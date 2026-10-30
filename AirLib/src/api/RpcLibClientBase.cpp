@@ -773,6 +773,16 @@ __pragma(warning(disable : 4239))
             return pimpl_->client.call("simGetTurbineOrientations", turbine_name).as<std::map<std::string, std::vector<float>>>();
         }
 
+        bool RpcLibClientBase::simSetVesselTarget(double latitude, double longitude, float speed_mps)
+        {
+            return pimpl_->client.call("simSetVesselTarget", latitude, longitude, speed_mps).as<bool>();
+        }
+
+        std::map<std::string, double> RpcLibClientBase::simGetVesselState() const
+        {
+            return pimpl_->client.call("simGetVesselState").as<std::map<std::string, double>>();
+        }
+        
         vector<string> RpcLibClientBase::listVehicles()
         {
             return pimpl_->client.call("listVehicles").as<vector<string>>();

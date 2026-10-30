@@ -200,6 +200,10 @@ namespace airlib
         bool simSetTurbineDowntime(const std::string& turbine_name, const std::string& start_datetime, const std::string& end_datetime);
         std::map<std::string, std::vector<float>> simGetTurbineOrientations(const std::string& turbine_name) const;
 
+
+        bool simSetVesselTarget(double latitude, double longitude, float speed_mps);
+        std::map<std::string, double> simGetVesselState() const;
+
         vector<string> listVehicles();
 
         std::string getSettingsString() const;
