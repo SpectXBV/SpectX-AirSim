@@ -308,3 +308,11 @@ while True:
 ```
 
 The vessel charging pad is the authoritative GNSS reference point. The physical ship, charging pad, and collision plane move together.
+
+### Docked drone vessel following
+
+Starting with v2.2.1, an unarmed drone that is physically grounded inside the vessel helideck follows the vessel as the platform moves. Each drone is handled independently, so multiple grounded drones can remain on the moving helideck at the same time.
+
+Vessel following requires the drone to remain grounded, unarmed, and inside a `vessel_helideck` charging-pad volume. When those conditions no longer apply, vessel-follow translation stops and normal AirSim vehicle physics remains responsible for the drone motion.
+
+The charging state machine remains separate from vessel following and continues to use its existing docking and charging eligibility checks.
