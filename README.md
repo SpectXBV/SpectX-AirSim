@@ -175,10 +175,10 @@ client.simSetTimeOfDay(False)
 
 ### Wind turbine IDs
 
-The Offshore Wind Farm map exposes 35 turbines:
+The Offshore Wind Farm map exposes 36 turbines:
 
 ```text
-WTG_01 ... WTG_35
+WTG_01 ... WTG_36
 ```
 
 ### Schedule turbine downtime
@@ -853,3 +853,55 @@ g++ -std=c++17 -O2 -Wall -Wextra \
   battery model for all three drones.
 - PX4 connection, closed-loop flight, full endurance
   and docking/charging validation remain outstanding.
+
+## Offshore Wind Farm Layout (v2.5.0)
+
+### Layout Changes
+
+- Corrected the positions of 35 existing turbines.
+- Added WTG_36 with tag Turbine36.
+- Positioned WTG_04 at the Unreal world XY origin.
+- Removed 199 legacy surface-defect actors.
+- Preserved both dataset controllers.
+- Relocated the vessel, helideck and PlayerStart.
+- Preserved wind and battery models.
+
+### Coordinate System
+
+Unreal coordinates use centimetres (X North, Y East, Z Up).
+AirSim NED coordinates use metres (North, East, Down).
+
+The geographical reference is anchored to Turbine4:
+- Latitude: 52.6075 degrees
+- Longitude: 4.43306 degrees
+- Altitude: 7.4 m
+
+The global NED origin is independent of the geographical anchor.
+
+[Complete turbine coordinates](docs/wind_farm_layout/turbine_coordinates.csv)
+
+### Runtime Validation
+
+| Test | Result |
+|---|---|
+| Unreal turbine count | 36/36 |
+| Runtime turbine detection | 36/36 |
+| Orientation API | 36/36 passed |
+| Maximum XY error | 0.1943 mm |
+| Mean XY error | 0.0888 mm |
+| Rust generation | Passed |
+| Ocean coverage | Visually verified |
+| Three-drone spawning | Visually verified |
+| Vessel state API | Passed |
+| Charging platform initialization | Passed |
+
+### Validation Scripts and Limitations
+
+Runtime validation scripts are available in
+tests/wind_farm_layout/.
+
+The charging platform retains ID vessel_helideck_1.
+
+Leading-edge erosion testing is deferred.
+Full charging cycles, vessel movement and PX4 flight
+tests have not been repeated for this layout update.
