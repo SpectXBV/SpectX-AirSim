@@ -951,3 +951,10 @@ tests have not been repeated for this layout update.
 ### Compatibility
 - Existing vessel, drone starting positions, wind model,
   battery model and dataset controllers are retained.
+
+## Sun Orientation Correction (v2.5.3)
+
+- Corrected runtime Directional Light yaw by 180 degrees.
+- Preserved astronomical sun elevation and TimeOfDay API.
+- Corrected morning sun direction verified during Play mode.
+- All turbine coordinates and geographical anchor remain unchanged.
