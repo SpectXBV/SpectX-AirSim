@@ -918,3 +918,36 @@ tests have not been repeated for this layout update.
 - Mean XY error: 0.0681 mm.
 - Rotor orientation changes detected for all 36 turbines.
 
+
+## Wind Farm Geographical Correction (v2.5.2)
+
+### Turbine layout
+- Updated all 36 turbine positions using WGS84 geographical coordinates.
+- Unreal coordinate convention: X North, Y East, Z Up.
+- Horizontal coordinates are expressed in centimetres.
+- WTG-04 remains at Unreal X=0, Y=0.
+- Existing turbine elevations, rotations and scales are preserved.
+
+### Geographical reference
+- AnchorActorTag: Turbine4
+- Latitude: 52.59197
+- Longitude: 4.41594
+- Altitude: 7.4 m (unchanged)
+
+### SunSky correction
+- Latitude: 52.59197
+- Longitude: 4.41594
+- North Offset: 180 degrees
+- Time Zone: UTC+1
+- Corrected sunrise and sunset orientation.
+
+### Validation
+- All 36 turbine positions updated successfully.
+- Maximum editor XY positioning error: 0 cm relative to the CSV.
+- Unique geographical anchor actor verified.
+- Runtime layout and sun orientation checked.
+- Independent full GPS conversion and packaged validation pending.
+
+### Compatibility
+- Existing vessel, drone starting positions, wind model,
+  battery model and dataset controllers are retained.
