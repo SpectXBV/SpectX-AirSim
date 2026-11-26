@@ -1,0 +1,322 @@
+{
+    "CameraDefaults": {
+        "CaptureSettings": [
+            {
+                "FOV_Degrees": 90.0,
+                "Height": 1080,
+                "ImageType": 0,
+                "LumenGIEnable": false,
+                "LumenReflectionEnable": false,
+                "Width": 1920
+            }
+        ]
+    },
+    "ClockType": "SteppableClock",
+    "OriginGeopoint": {
+        "Altitude": 7.4,
+        "AnchorActorTag": "Turbine4",
+        "Latitude": 52.59197,
+        "Longitude": 4.41594
+    },
+    "SettingsVersion": 2.0,
+    "SimMode": "Multirotor",
+    "SubWindows": [
+        {
+            "CameraName": "front_center",
+            "ImageType": 0,
+            "VehicleName": "drone_1",
+            "Visible": true,
+            "WindowID": 0
+        },
+        {
+            "CameraName": "front_center",
+            "ImageType": 0,
+            "VehicleName": "drone_2",
+            "Visible": true,
+            "WindowID": 1
+        },
+        {
+            "CameraName": "front_center",
+            "ImageType": 0,
+            "VehicleName": "drone_3",
+            "Visible": true,
+            "WindowID": 2
+        }
+    ],
+    "Vehicles": {
+        "drone_1": {
+            "Battery": {
+                "Charging": {
+                    "Enabled": true,
+                    "ChargeRateC": 0.5,
+                    "Efficiency": 0.92,
+                    "CvStartStateOfCharge": 0.9,
+                    "CutoffCurrentFraction": 0.05,
+                    "PadComponentTag": "AirSimChargingPad",
+                    "DockDwellSeconds": 2.0,
+                    "MaxRelativeSpeedMps": 0.15,
+                    "MaxRotorMechanicalPowerW": 1.0,
+                    "MaxObservationAgeSeconds": 1.0
+                },
+                "AvionicsDrawW": 10.0,
+                "CapacityWh": 648.0,
+                "LowStateOfChargeThreshold": 0.15,
+                "MotorEfficiency": 0.85,
+                "NominalVoltage": 21.6,
+                "Model": "Calibrated",
+                "MechanicalPowerScale": 17.5187,
+                "ClimbPowerCoefficient": 0.0,
+                "InternalResistanceOhm": 0.013,
+                "InitialStateOfCharge": 1.0
+            },
+            "Cameras": {
+                "front_center": {
+                    "CaptureSettings": [
+                        {
+                            "ImageType": 0,
+                            "Width": 640,
+                            "Height": 480,
+                            "FOV_Degrees": 90
+                        }
+                    ],
+                    "X": 0.5,
+                    "Y": 0,
+                    "Z": -0.2,
+                    "Pitch": 0,
+                    "Roll": 0,
+                    "Yaw": 0
+                }
+            },
+            "ControlIp": "remote",
+            "ControlPortLocal": 14540,
+            "ControlPortRemote": 14580,
+            "LocalHostIp": "127.0.0.1",
+            "LockStep": true,
+            "Parameters": {
+                "BAT1_SOURCE": 1,
+                "BAT_CRIT_THR": 0.07,
+                "BAT_EMERGEN_THR": 0.05,
+                "BAT_LOW_THR": 0.15,
+                "COM_FLTT_LOW_ACT": 0,
+                "COM_LOW_BAT_ACT": 3,
+                "COM_OBL_RC_ACT": 0,
+                "COM_RC_IN_MODE": 4,
+                "LPE_LAT": 53.02403259,
+                "LPE_LON": 7.05168581,
+                "MPC_THR_HOVER": 0.55,
+                "NAV_DLL_ACT": 0,
+                "NAV_RCL_ACT": 2,
+                "SIM_BAT_ENABLE": 0
+            },
+            "TcpPort": 4560,
+            "UseSerial": false,
+            "UseTcp": true,
+            "VehicleType": "PX4Multirotor",
+            "X": 0.0,
+            "Y": 0.0,
+            "Z": 3.2669690898053023
+        },
+        "drone_2": {
+            "Battery": {
+                "Charging": {
+                    "Enabled": true,
+                    "ChargeRateC": 0.5,
+                    "Efficiency": 0.92,
+                    "CvStartStateOfCharge": 0.9,
+                    "CutoffCurrentFraction": 0.05,
+                    "PadComponentTag": "AirSimChargingPad",
+                    "DockDwellSeconds": 2.0,
+                    "MaxRelativeSpeedMps": 0.15,
+                    "MaxRotorMechanicalPowerW": 1.0,
+                    "MaxObservationAgeSeconds": 1.0
+                },
+                "AvionicsDrawW": 10.0,
+                "CapacityWh": 648.0,
+                "LowStateOfChargeThreshold": 0.15,
+                "MotorEfficiency": 0.85,
+                "NominalVoltage": 21.6,
+                "Model": "Calibrated",
+                "MechanicalPowerScale": 17.5187,
+                "ClimbPowerCoefficient": 0.0,
+                "InternalResistanceOhm": 0.013,
+                "InitialStateOfCharge": 1.0
+            },
+            "Cameras": {
+                "front_center": {
+                    "CaptureSettings": [
+                        {
+                            "ImageType": 0,
+                            "Width": 640,
+                            "Height": 480,
+                            "FOV_Degrees": 90
+                        }
+                    ],
+                    "X": 0.5,
+                    "Y": 0,
+                    "Z": -0.2,
+                    "Pitch": 0,
+                    "Roll": 0,
+                    "Yaw": 0
+                }
+            },
+            "ControlIp": "remote",
+            "ControlPortLocal": 14541,
+            "ControlPortRemote": 14581,
+            "LocalHostIp": "127.0.0.1",
+            "LockStep": true,
+            "Parameters": {
+                "BAT1_SOURCE": 1,
+                "BAT_CRIT_THR": 0.07,
+                "BAT_EMERGEN_THR": 0.05,
+                "BAT_LOW_THR": 0.15,
+                "COM_FLTT_LOW_ACT": 0,
+                "COM_LOW_BAT_ACT": 3,
+                "COM_OBL_RC_ACT": 0,
+                "COM_RC_IN_MODE": 4,
+                "LPE_LAT": 53.02403259,
+                "LPE_LON": 7.05168581,
+                "MPC_THR_HOVER": 0.55,
+                "NAV_DLL_ACT": 0,
+                "NAV_RCL_ACT": 2,
+                "SIM_BAT_ENABLE": 0
+            },
+            "TcpPort": 4561,
+            "UseSerial": false,
+            "UseTcp": true,
+            "VehicleType": "PX4Multirotor",
+            "X": 0.0,
+            "Y": -3.0,
+            "Z": 3.2669690898053023
+        },
+        "drone_3": {
+            "Battery": {
+                "Charging": {
+                    "Enabled": true,
+                    "ChargeRateC": 0.5,
+                    "Efficiency": 0.92,
+                    "CvStartStateOfCharge": 0.9,
+                    "CutoffCurrentFraction": 0.05,
+                    "PadComponentTag": "AirSimChargingPad",
+                    "DockDwellSeconds": 2.0,
+                    "MaxRelativeSpeedMps": 0.15,
+                    "MaxRotorMechanicalPowerW": 1.0,
+                    "MaxObservationAgeSeconds": 1.0
+                },
+                "AvionicsDrawW": 10.0,
+                "CapacityWh": 648.0,
+                "LowStateOfChargeThreshold": 0.15,
+                "MotorEfficiency": 0.85,
+                "NominalVoltage": 21.6,
+                "Model": "Calibrated",
+                "MechanicalPowerScale": 17.5187,
+                "ClimbPowerCoefficient": 0.0,
+                "InternalResistanceOhm": 0.013,
+                "InitialStateOfCharge": 1.0
+            },
+            "Cameras": {
+                "front_center": {
+                    "CaptureSettings": [
+                        {
+                            "ImageType": 0,
+                            "Width": 640,
+                            "Height": 480,
+                            "FOV_Degrees": 90
+                        }
+                    ],
+                    "X": 0.5,
+                    "Y": 0,
+                    "Z": -0.2,
+                    "Pitch": 0,
+                    "Roll": 0,
+                    "Yaw": 0
+                }
+            },
+            "ControlIp": "remote",
+            "ControlPortLocal": 14542,
+            "ControlPortRemote": 14582,
+            "LocalHostIp": "127.0.0.1",
+            "LockStep": true,
+            "Parameters": {
+                "BAT1_SOURCE": 1,
+                "BAT_CRIT_THR": 0.07,
+                "BAT_EMERGEN_THR": 0.05,
+                "BAT_LOW_THR": 0.15,
+                "COM_FLTT_LOW_ACT": 0,
+                "COM_LOW_BAT_ACT": 3,
+                "COM_OBL_RC_ACT": 0,
+                "COM_RC_IN_MODE": 4,
+                "LPE_LAT": 53.02403259,
+                "LPE_LON": 7.05168581,
+                "MPC_THR_HOVER": 0.55,
+                "NAV_DLL_ACT": 0,
+                "NAV_RCL_ACT": 2,
+                "SIM_BAT_ENABLE": 0
+            },
+            "TcpPort": 4562,
+            "UseSerial": false,
+            "UseTcp": true,
+            "VehicleType": "PX4Multirotor",
+            "X": 0.0,
+            "Y": 3.0,
+            "Z": 3.2669690898053023
+        }
+    },
+    "TimeOfDay": {
+        "Enabled": true,
+        "StartDateTime": "2026-09-24 09:00:00",
+        "StartDateTimeDst": true,
+        "CelestialClockSpeed": 1.0,
+        "UpdateIntervalSecs": 1.0,
+        "MoveSun": true
+    },
+    "WindModel": {
+        "Enabled": true,
+        "Model": "StochasticWind",
+        "UpdateRateHz": 10.0,
+        "RandomSeed": 42,
+        "ReferenceWind": {
+            "SpeedMps": 0.0,
+            "DirectionNED": {
+                "X": 0.0,
+                "Y": 1.0,
+                "Z": 0.0
+            },
+            "ReferenceAltitudeM": 5.0,
+            "ShearExponent": 0.0,
+            "MinimumAltitudeM": 0.1
+        },
+        "Gust": {
+            "Enabled": false,
+            "TargetSpeedStdDevMps": 2.5,
+            "RampDurationMinSec": 0.5,
+            "RampDurationMaxSec": 5.0,
+            "HoldDurationMinSec": 0.5,
+            "HoldDurationMaxSec": 5.0,
+            "MaxStepRateMps2": 2.0,
+            "MaxDirectionChangeDeg": 10.0
+        },
+        "Turbulence": {
+            "Enabled": false,
+            "StdDevMps": 1.0,
+            "LengthScaleM": 50.0,
+            "SeriesDurationSec": 600.0
+        },
+        "Aerodynamics": {
+            "Mode": "PaperCylinder",
+            "AirDensityKgM3": 1.225,
+            "DragCoefficient": 1.1,
+            "RadiusM": 0.75,
+            "HeightM": 0.3,
+            "LateralAreaScale": 1.0,
+            "FrontalAreaScale": 1.0,
+            "VerticalDrag": false,
+            "VerticalAreaM2": 1.7671458676,
+            "CenterOfPressureM": {
+                "X": 0.0,
+                "Y": 0.0,
+                "Z": 0.0
+            },
+            "MaximumForceN": 1000.0
+        }
+    }
+}
