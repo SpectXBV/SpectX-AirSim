@@ -905,3 +905,16 @@ The charging platform retains ID vessel_helideck_1.
 Leading-edge erosion testing is deferred.
 Full charging cycles, vessel movement and PX4 flight
 tests have not been repeated for this layout update.
+
+## Wind Farm Coordinate Correction (v2.5.1)
+
+- Corrected X and Y coordinates of all 36 turbines.
+- Reversed both horizontal coordinate signs relative to v2.5.0.
+- Preserved turbine elevations, orientations and IDs.
+- Preserved vessel, PlayerStart and geographical anchor.
+- Updated the reference turbine coordinate CSV.
+- Runtime coordinate validation: 36/36 passed.
+- Maximum XY error: 0.1657 mm.
+- Mean XY error: 0.0681 mm.
+- Rotor orientation changes detected for all 36 turbines.
+
